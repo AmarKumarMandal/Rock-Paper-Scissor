@@ -797,7 +797,10 @@ function updateLocalUI() {
 // ── Online PvP (Networking) Logic ───────────────────────────────────────────
 function hostOnlineGame() {
   if (peer) return;
-  peer = new Peer();
+  
+  // Generate a small, human-readable 6-character ID
+  const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
+  peer = new Peer(shortId);
   
   $('lobby-initial').style.display = 'none';
   $('lobby-hosting').style.display = 'block';
@@ -816,8 +819,15 @@ function hostOnlineGame() {
   });
 
   peer.on('error', (err) => {
+    if (err.type === 'unavailable-id') {
+      // If ID taken, try one more time with a different ID
+      peer.destroy();
+      peer = null;
+      setTimeout(hostOnlineGame, 100);
+      return;
+    }
     console.error(err);
-    alert('PeerJS Error: ' + err.type);
+    alert('Network Error: ' + err.type);
     cancelOnline();
   });
 }
@@ -991,15 +1001,28 @@ window.onload = () => {
 window.addEventListener('keydown', (e) => {
   const key = e.key.toLowerCase();
   
-  // P1 Keys: Q, W, E
-  if (key === 'q') localPick(1, 'Rock');
-  if (key === 'w') localPick(1, 'Paper');
-  if (key === 'e') localPick(1, 'Scissors');
-  
-  // P2 Keys: 1, 2, 3
-  if (key === '1') localPick(2, 'Rock');
-  if (key === '2') localPick(2, 'Paper');
-  if (key === '3') localPick(2, 'Scissors');
+  // Decide which mode to apply keyboard to
+  const isOnline = $('view-online').classList.contains('active') && $('online-arena-ui').style.display === 'flex';
+  const isLocal = $('view-local').classList.contains('active');
+
+  if (isOnline) {
+    if (key === 'q') onlinePick('Rock');
+    if (key === 'w') onlinePick('Paper');
+    if (key === 'e') onlinePick('Scissors');
+    return;
+  }
+
+  if (isLocal) {
+    // P1 Keys: Q, W, E
+    if (key === 'q') localPick(1, 'Rock');
+    if (key === 'w') localPick(1, 'Paper');
+    if (key === 'e') localPick(1, 'Scissors');
+    
+    // P2 Keys: 1, 2, 3
+    if (key === '1') localPick(2, 'Rock');
+    if (key === '2') localPick(2, 'Paper');
+    if (key === '3') localPick(2, 'Scissors');
+  }
 });
 
 // ── Particle Background ──────────────────────────────────────────────────────
