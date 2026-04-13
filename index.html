@@ -306,7 +306,7 @@
     .network-status.error { color: var(--red); }
 
     .exit-room-btn {
-      display: none; align-self: flex-start;
+      display: flex; align-self: flex-start;
       background: rgba(248,113,113,0.1); border: 1.5px solid rgba(248,113,113,0.3);
       color: var(--red); padding: 8px 16px; border-radius: 10px;
       font-size: 12px; font-weight: 700; cursor: pointer; transition: all .2s;
@@ -501,8 +501,8 @@
   <!-- View: Online Lobby -->
   <div id="view-online" class="view">
     <div style="display: flex; gap: 10px;">
-      <button id="online-back-btn" class="back-btn" onclick="showView('home')">← Back</button>
-      <button id="online-exit-btn" class="exit-room-btn" onclick="cancelOnline()">🚪 Exit Room</button>
+      <button class="back-btn" onclick="onlineGoBack()">← Back</button>
+      <button id="online-exit-btn" class="exit-room-btn" style="display:none;" onclick="cancelOnline()">🚪 Exit Room</button>
     </div>
     <div class="home-title">
       <div class="mode-icon">🌐</div>
@@ -875,7 +875,6 @@ function setupOnlineEvents() {
     $('lobby-hosting').style.display = 'none';
     $('lobby-initial').style.display = 'none';
     $('online-arena-ui').style.display = 'flex';
-    $('online-back-btn').style.display = 'none';
     $('online-exit-btn').style.display = 'flex';
     $('online-result-text').textContent = 'Connected! Choose your weapon.';
     $('online-global-status').textContent = 'LIVE MATCH';
@@ -982,7 +981,6 @@ function cancelOnline() {
   $('lobby-initial').style.display = 'flex';
   $('lobby-hosting').style.display = 'none';
   $('online-arena-ui').style.display = 'none';
-  $('online-back-btn').style.display = 'flex';
   $('online-exit-btn').style.display = 'none';
   $('online-global-status').textContent = 'Connect with anyone, anywhere.';
   $('online-global-status').style.color = 'var(--text-secondary)';
@@ -1008,6 +1006,11 @@ function showCopyMsg(msg) {
   el.textContent = msg;
   el.style.opacity = 1;
   setTimeout(() => el.style.opacity = 0, 2000);
+}
+
+function onlineGoBack() {
+  if (peer) cancelOnline();
+  showView('home');
 }
 
 // Auto-join if room in URL
