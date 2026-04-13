@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>⚡ Rock · Paper · Scissors</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet"/>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <style>
     /* ── Reset & Base ─────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -265,6 +266,45 @@
     }
     .back-btn:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
 
+    /* ── Networking UI ────────────────────────────────────────────── */
+    .lobby-box {
+      background: var(--bg-card); border-radius: 20px; padding: 30px;
+      display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 500px;
+      margin: 20px auto; border: 1.5px solid rgba(139,92,246,0.2);
+    }
+    .input-group { display: flex; flex-direction: column; gap: 8px; }
+    .input-group label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
+    .lobby-input {
+      background: rgba(0,0,0,0.2); border: 1.5px solid rgba(255,255,255,0.1);
+      border-radius: 12px; padding: 12px 16px; color: var(--text-primary);
+      font-family: 'Inter', sans-serif; font-size: 14px; outline: none; transition: border-color .2s;
+    }
+    .lobby-input:focus { border-color: var(--purple); }
+    .lobby-input::placeholder { color: var(--text-muted); }
+
+    .action-btn {
+      background: var(--purple); color: white; border: none; border-radius: 12px;
+      padding: 14px; font-weight: 800; cursor: pointer; transition: all .2s;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .action-btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(139,92,246,0.3); }
+    .action-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .action-btn.secondary { background: rgba(255,255,255,0.05); color: var(--text-secondary); border: 1.5px solid rgba(255,255,255,0.1); }
+    .action-btn.secondary:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
+
+    .id-badge {
+      font-family: monospace; background: rgba(0,0,0,0.3); padding: 10px;
+      border-radius: 8px; border: 1px dashed var(--purple); color: var(--cyan);
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 5px; cursor: pointer;
+    }
+    .id-badge:hover { background: rgba(139,92,246,0.1); }
+    .id-badge i { font-size: 12px; color: var(--text-muted); }
+
+    .network-status { font-size: 12px; font-weight: 600; color: var(--text-muted); text-align: center; }
+    .network-status.connected { color: var(--green); }
+    .network-status.error { color: var(--red); }
+
     /* ── Local PvP Layout ─────────────────────────────────────────── */
     .local-arena { display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; align-items: center; }
     .player-box { 
@@ -455,18 +495,90 @@
     <div class="home-title">
       <div class="mode-icon">🌐</div>
       <h2>ONLINE PvP</h2>
-      <p>Multiplayer networking requires the Desktop Ultimate Edition.</p>
+      <p id="online-global-status">Connect with anyone, anywhere.</p>
     </div>
-    <div class="arena" style="margin-top:20px; text-align:center; padding:40px;">
-      <p style="color:var(--text-secondary); margin-bottom:20px;">
-        Browser-based TCP sockets are restricted by security.
-      </p>
-      <div style="background:var(--bg-card); padding:20px; border-radius:15px; border:1px dashed var(--pink);">
-        <h4 style="color:var(--pink); margin-bottom:10px;">PRO TIP</h4>
-        <p style="font-size:13px; line-height:1.6;">
-          To play with friends globally, please run the <b>RockPaperScissors.jar</b> file from this repository. 
-          It includes the full GameServer and GameClient logic for LAN and Wi-Fi play!
-        </p>
+
+    <!-- Lobby State: Initial -->
+    <div id="lobby-initial" class="lobby-box">
+      <div class="input-group">
+        <label>Host a Game</label>
+        <button class="action-btn" onclick="hostOnlineGame()">Create Private Room</button>
+        <p style="font-size:11px; color:var(--text-muted); margin-top:5px; text-align:center;">You'll get an ID to share with a friend.</p>
+      </div>
+      <div style="text-align:center; color:rgba(255,255,255,0.1); font-weight:900;">OR</div>
+      <div class="input-group">
+        <label>Join a Friend</label>
+        <input type="text" id="join-id-input" class="lobby-input" placeholder="Paste Game ID here...">
+        <button class="action-btn secondary" id="join-btn" onclick="joinOnlineGame()">Join Room</button>
+      </div>
+    </div>
+
+    <!-- Lobby State: Hosting -->
+    <div id="lobby-hosting" class="lobby-box" style="display:none;">
+      <div class="input-group">
+        <label>Share with your friend</label>
+        <div class="id-badge" style="border-style: solid; background: rgba(0,0,0,0.4); cursor: default;">
+          <span id="my-id-display" style="font-weight: 800; color: var(--purple);">Generating...</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+          <button class="action-btn secondary" style="font-size: 11px; padding: 10px;" onclick="copyIDOnly()">Copy ID</button>
+          <button class="action-btn" style="font-size: 11px; padding: 10px;" onclick="copyMyLink()">Copy Link</button>
+        </div>
+        <p id="copy-confirm" style="font-size: 10px; color: var(--green); text-align:center; opacity:0; transition:opacity .3s; margin-top: 5px;">Link copied to clipboard!</p>
+      </div>
+      <div class="network-status" id="host-status">Waiting for opponent to join...</div>
+      <button class="action-btn secondary" onclick="cancelOnline()">Cancel</button>
+    </div>
+
+    <!-- View: Online Game Arena (Nested in Online view) -->
+    <div id="online-arena-ui" style="display:none; flex-direction:column; gap:20px;">
+      <div class="scoreboard">
+        <div class="score-card" style="border-color:var(--purple)">
+          <div class="score-label" style="color:var(--purple)">You</div>
+          <div class="score-value" id="online-score-me">0</div>
+        </div>
+        <div class="score-card" style="border-color:var(--yellow)">
+          <div class="score-label" style="color:var(--yellow)">Ties</div>
+          <div class="score-value" id="online-score-tie">0</div>
+        </div>
+        <div class="score-card" style="border-color:var(--pink)">
+          <div class="score-label" style="color:var(--pink)">Opponent</div>
+          <div class="score-value" id="online-score-op">0</div>
+        </div>
+      </div>
+
+      <div class="arena">
+        <div class="local-arena">
+          <div class="player-box p1-box">
+            <div class="side-label" style="color:var(--purple)">YOU</div>
+            <div class="choice-emoji" id="online-me-emoji">❓</div>
+            <div id="online-me-status" class="status-badge waiting">Choose weapon</div>
+          </div>
+          <div class="vs-label">VS</div>
+          <div class="player-box p2-box">
+            <div class="side-label" style="color:var(--pink)">OPPONENT</div>
+            <div class="choice-emoji" id="online-op-emoji">❓</div>
+            <div id="online-op-status" class="status-badge waiting">Thinking...</div>
+          </div>
+        </div>
+        <div class="result-bar">
+          <div id="online-result-text">Waiting for connection...</div>
+        </div>
+      </div>
+
+      <div class="btn-row" id="online-btn-row">
+        <button class="choice-btn" data-choice="Rock" onclick="onlinePick('Rock')">
+          <span class="btn-emoji">🪨</span>
+          <span class="btn-label">Rock</span>
+        </button>
+        <button class="choice-btn" data-choice="Paper" onclick="onlinePick('Paper')">
+          <span class="btn-emoji">📄</span>
+          <span class="btn-label">Paper</span>
+        </button>
+        <button class="choice-btn" data-choice="Scissors" onclick="onlinePick('Scissors')">
+          <span class="btn-emoji">✂️</span>
+          <span class="btn-label">Scissors</span>
+        </button>
       </div>
     </div>
   </div>
@@ -486,6 +598,11 @@ let history = [];
 let localP1Score = 0, localP2Score = 0, localTieScore = 0, localRound = 0;
 let p1Choice = null, p2Choice = null;
 let localLocked = false;
+
+// Online PvP State
+let peer = null, conn = null, myId = null, role = null; // 'host' or 'guest'
+let onlineScoreMe = 0, onlineScoreOp = 0, onlineTieScore = 0, onlineRound = 0;
+let myMove = null, opMove = null, onlineBusy = false;
 
 // ── View Management ──────────────────────────────────────────────────────────
 function showView(viewId) {
@@ -676,6 +793,199 @@ function updateLocalUI() {
   $('local-score-tie').textContent = localTieScore;
   localRoundLabel.textContent = `Round ${localRound}`;
 }
+
+// ── Online PvP (Networking) Logic ───────────────────────────────────────────
+function hostOnlineGame() {
+  if (peer) return;
+  peer = new Peer();
+  
+  $('lobby-initial').style.display = 'none';
+  $('lobby-hosting').style.display = 'block';
+  $('my-id-display').textContent = 'Connecting...';
+
+  peer.on('open', (id) => {
+    myId = id;
+    $('my-id-display').textContent = id;
+    role = 'host';
+  });
+
+  peer.on('connection', (c) => {
+    if (conn) return c.close(); // Only 2 players
+    conn = c;
+    setupOnlineEvents();
+  });
+
+  peer.on('error', (err) => {
+    console.error(err);
+    alert('PeerJS Error: ' + err.type);
+    cancelOnline();
+  });
+}
+
+function joinOnlineGame(targetId = null) {
+  if (peer) return;
+  let id = targetId || $('join-id-input').value.trim();
+  if (!id) return alert('Enter a Room ID!');
+
+  // Robust check: Extract ID if they paste a whole link
+  if (id.includes('room=')) {
+    id = id.split('room=')[1].split('&')[0];
+  } else if (id.includes('/')) {
+    // If they pasted a link without room= (unlikely but possible if custom)
+    id = id.split('/').pop();
+  }
+
+  peer = new Peer();
+  peer.on('open', () => {
+    role = 'guest';
+    conn = peer.connect(id);
+    setupOnlineEvents();
+  });
+
+  peer.on('error', (err) => {
+    alert('Connection failed: ' + err.type);
+    cancelOnline();
+  });
+}
+
+function setupOnlineEvents() {
+  conn.on('open', () => {
+    $('lobby-hosting').style.display = 'none';
+    $('lobby-initial').style.display = 'none';
+    $('online-arena-ui').style.display = 'flex';
+    $('online-result-text').textContent = 'Connected! Choose your weapon.';
+    $('online-global-status').textContent = 'LIVE MATCH';
+    $('online-global-status').style.color = 'var(--cyan)';
+  });
+
+  conn.on('data', (data) => {
+    if (data.type === 'move') {
+      opMove = data.choice;
+      $('online-op-status').textContent = 'Ready!';
+      $('online-op-status').className = 'status-badge ready';
+      checkOnlineResult();
+    } else if (data.type === 'rematch') {
+      // Automatic rematch handled by resetOnlineRound
+    }
+  });
+
+  conn.on('close', () => {
+    alert('Opponent disconnected.');
+    cancelOnline();
+  });
+}
+
+function onlinePick(choice) {
+  if (onlineBusy || myMove || !conn) return;
+  myMove = choice;
+  $('online-me-emoji').textContent = '✅';
+  $('online-me-status').textContent = 'Ready!';
+  $('online-me-status').className = 'status-badge ready';
+  
+  conn.send({ type: 'move', choice: choice });
+  checkOnlineResult();
+}
+
+function checkOnlineResult() {
+  if (myMove && opMove) {
+    onlineBusy = true;
+    onlineRound++;
+    $('online-result-text').textContent = 'Revealing...';
+    
+    setTimeout(() => {
+      $('online-me-emoji').textContent = EMOJI[myMove];
+      $('online-op-emoji').textContent = EMOJI[opMove];
+      
+      const res = winner(myMove, opMove);
+      let msg, color;
+      
+      if (res === 'WIN') {
+        onlineScoreMe++;
+        msg = '🏆 You Win!';
+        color = 'var(--green)';
+      } else if (res === 'LOSE') {
+        onlineScoreOp++;
+        msg = '💀 You Lose!';
+        color = 'var(--red)';
+      } else {
+        onlineTieScore++;
+        msg = "🤝 It's a Tie!";
+        color = 'var(--yellow)';
+      }
+      
+      $('online-result-text').textContent = msg;
+      $('online-result-text').style.color = color;
+      updateOnlineUI();
+      
+      setTimeout(resetOnlineRound, 2500);
+    }, 800);
+  }
+}
+
+function resetOnlineRound() {
+  myMove = opMove = null;
+  onlineBusy = false;
+  $('online-me-emoji').textContent = '❓';
+  $('online-op-emoji').textContent = '❓';
+  $('online-me-status').textContent = 'Choose weapon';
+  $('online-me-status').className = 'status-badge waiting';
+  $('online-op-status').textContent = 'Thinking...';
+  $('online-op-status').className = 'status-badge waiting';
+  $('online-result-text').textContent = 'Round ' + (onlineRound + 1) + ': Pick your weapon!';
+  $('online-result-text').style.color = 'var(--text-secondary)';
+}
+
+function updateOnlineUI() {
+  $('online-score-me').textContent = onlineScoreMe;
+  $('online-score-op').textContent = onlineScoreOp;
+  $('online-score-tie').textContent = onlineTieScore;
+}
+
+function cancelOnline() {
+  if (conn) conn.close();
+  if (peer) peer.destroy();
+  peer = conn = myId = role = null;
+  onlineScoreMe = onlineScoreOp = onlineTieScore = onlineRound = 0;
+  myMove = opMove = null;
+  
+  $('lobby-initial').style.display = 'flex';
+  $('lobby-hosting').style.display = 'none';
+  $('online-arena-ui').style.display = 'none';
+  $('online-global-status').textContent = 'Connect with anyone, anywhere.';
+  $('online-global-status').style.color = 'var(--text-secondary)';
+  updateOnlineUI();
+}
+
+function copyIDOnly() {
+  if (!myId) return;
+  navigator.clipboard.writeText(myId);
+  showCopyMsg('ID Copied!');
+}
+
+function copyMyLink() {
+  if (!myId) return;
+  const baseUrl = window.location.href.split('?')[0];
+  const inviteLink = baseUrl + '?room=' + myId;
+  navigator.clipboard.writeText(inviteLink);
+  showCopyMsg('Link Copied!');
+}
+
+function showCopyMsg(msg) {
+  const el = $('copy-confirm');
+  el.textContent = msg;
+  el.style.opacity = 1;
+  setTimeout(() => el.style.opacity = 0, 2000);
+}
+
+// Auto-join if room in URL
+window.onload = () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const room = urlParams.get('room');
+  if (room) {
+    showView('online');
+    setTimeout(() => joinOnlineGame(room), 500);
+  }
+};
 
 // ── Keyboard Listeners ───────────────────────────────────────────────────────
 window.addEventListener('keydown', (e) => {
