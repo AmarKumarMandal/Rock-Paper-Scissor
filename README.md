@@ -73,4 +73,4 @@ Rock, Paper, Scisor Game/
 
 ---
 
-*Built with ❤️ by Amar Kumar Mandal — v2.0 Ultimate Edition*
+*Built with ❤️ by Amar Kumar Mandal copyright 2026*
